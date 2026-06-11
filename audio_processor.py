@@ -472,9 +472,11 @@ class AudioProcessor:
                 with open(splitting_script_path, "r", encoding="utf-8") as f:
                     script_code = f.read()
                     
-                # Replace INPUT_FOLDER and OUTPUT_FOLDER assignments dynamically
-                script_code = re.sub(r'INPUT_FOLDER\s*=.*', f'INPUT_FOLDER = r"{os.path.normpath(cleaned_folder)}"', script_code)
-                script_code = re.sub(r'OUTPUT_FOLDER\s*=.*', f'OUTPUT_FOLDER = r"{os.path.normpath(split_folder)}"', script_code)
+                # Replace INPUT_FOLDER and OUTPUT_FOLDER assignments dynamically (escaping backslashes for regex)
+                cleaned_folder_esc = os.path.normpath(cleaned_folder).replace('\\', '\\\\')
+                split_folder_esc = os.path.normpath(split_folder).replace('\\', '\\\\')
+                script_code = re.sub(r'INPUT_FOLDER\s*=.*', f'INPUT_FOLDER = r"{cleaned_folder_esc}"', script_code)
+                script_code = re.sub(r'OUTPUT_FOLDER\s*=.*', f'OUTPUT_FOLDER = r"{split_folder_esc}"', script_code)
                 
                 # Create a Mock os module to intercept listdir, so it only splits our newly generated file
                 class MockOS:
