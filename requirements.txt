@@ -1,0 +1,8 @@
+customtkinter>=5.2.0
+pygame>=2.5.2
+pydub>=0.25.1
+yt-dlp>=2026.3.17
+pillow>=10.0.0
+audioop-lts; python_version >= '3.13'
+fastapi>=0.100.0
+uvicorn>=0.22.0
