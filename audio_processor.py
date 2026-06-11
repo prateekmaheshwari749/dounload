@@ -478,6 +478,10 @@ class AudioProcessor:
                 script_code = re.sub(r'INPUT_FOLDER\s*=.*', f'INPUT_FOLDER = r"{cleaned_folder_esc}"', script_code)
                 script_code = re.sub(r'OUTPUT_FOLDER\s*=.*', f'OUTPUT_FOLDER = r"{split_folder_esc}"', script_code)
                 
+                # Strip import statements so it doesn't overwrite MockOS or standard modules inside exec context
+                script_code = re.sub(r'\bimport os\b', '', script_code)
+                script_code = re.sub(r'\bimport subprocess\b', '', script_code)
+                
                 # Create a Mock os module to intercept listdir, so it only splits our newly generated file
                 class MockOS:
                     def __init__(self):
