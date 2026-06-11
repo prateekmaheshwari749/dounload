@@ -6,11 +6,11 @@ echo.
 
 :: Start Python FastAPI server in a new cmd window
 echo [STEP 1] Launching FastAPI Backend on http://localhost:8000...
-start "Techphotons Backend" cmd /k "title Backend Server && .venv\Scripts\python -m uvicorn server:app --host 127.0.0.1 --port 8000"
+start "Techphotons Backend" cmd /k "title Backend Server && .venv\Scripts\python -m uvicorn server:app --host 0.0.0.0 --port 8000"
 
 :: Start Vite React dev server in a new cmd window
 echo [STEP 2] Launching Vite React Frontend on http://localhost:5173...
-start "Techphotons Frontend" cmd /k "title Frontend Server && cd frontend && npm run dev"
+start "Techphotons Frontend" cmd /k "title Frontend Server && cd frontend && npm run dev -- --host"
 
 :: Wait for servers to initialize
 echo.
