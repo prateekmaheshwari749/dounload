@@ -2,8 +2,8 @@ import argparse
 import yt_dlp as youtube_dl
 
 
-def build_ydl_opts():
-    return {
+def build_ydl_opts(browser=None):
+    opts = {
         'format': 'bestaudio/best',
         'outtmpl': '%(title)s.%(ext)s',
         'postprocessors': [{
@@ -18,6 +18,9 @@ def build_ydl_opts():
         'no_warnings': True,
         'quiet': False,
     }
+    if browser:
+        opts['cookiesfrombrowser'] = (browser, None, None, None)
+    return opts
 
 
 def parse_args():

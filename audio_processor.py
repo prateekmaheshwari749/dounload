@@ -13,8 +13,8 @@ try:
     from wav_dounload import build_ydl_opts
 except ImportError:
     # Fallback in case pathing is weird
-    def build_ydl_opts():
-        return {
+    def build_ydl_opts(browser=None):
+        opts = {
             'format': 'bestaudio/best',
             'outtmpl': '%(title)s.%(ext)s',
             'postprocessors': [{
@@ -29,6 +29,9 @@ except ImportError:
             'no_warnings': True,
             'quiet': False,
         }
+        if browser:
+            opts['cookiesfrombrowser'] = (browser, None, None, None)
+        return opts
 
 def check_ffmpeg() -> bool:
     """Check if ffmpeg is installed and available in the system path."""
@@ -132,74 +135,84 @@ class AudioProcessor:
             if not check_ffmpeg():
                 log_callback("[WARNING] FFmpeg was not found in system PATH. Download conversion may fail!")
             
-            try:
-                log_callback(f"[INFO] Initializing download for: {url}")
-                opts = build_ydl_opts()
-                
-                # Make sure output directory exists
-                os.makedirs(output_dir, exist_ok=True)
-                
-                # Update outtmpl to point to the output directory
-                opts['outtmpl'] = os.path.join(output_dir, '%(title)s.%(ext)s')
-                
-                # Progress Hook for yt-dlp
-                def ydl_hook(d):
-                    if d['status'] == 'downloading':
-                        total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
-                        downloaded = d.get('downloaded_bytes', 0)
-                        if total > 0:
-                            pct = downloaded / total
-                            progress_callback(pct)
-                            speed = d.get('speed', 0)
-                            speed_str = f"{speed / 1024 / 1024:.2f} MB/s" if speed else "unknown"
-                            log_callback(f"[INFO] Downloading... {downloaded / 1024 / 1024:.1f}MB / {total / 1024 / 1024:.1f}MB ({speed_str})")
-                        else:
-                            log_callback(f"[INFO] Downloading... {downloaded / 1024 / 1024:.1f}MB (size unknown)")
-                    elif d['status'] == 'finished':
-                        log_callback("[INFO] Audio download finished. Converting to WAV...")
-                        progress_callback(0.95)
-                
-                opts['progress_hooks'] = [ydl_hook]
-                
-                # Download audio
-                with youtube_dl.YoutubeDL(opts) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    raw_filename = ydl.prepare_filename(info)
+            # Make sure output directory exists
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Try different browsers for cookies to bypass bot detection
+            browsers_to_try = ['chrome', 'edge', 'firefox', 'brave', 'opera', None]
+            success = False
+            last_error = None
+            
+            for browser in browsers_to_try:
+                browser_label = f"cookies from {browser}" if browser else "no cookies"
+                try:
+                    log_callback(f"[INFO] Attempting download using {browser_label}...")
                     
-                    # The downloader postprocessor changes extension to wav
-                    wav_path = os.path.splitext(raw_filename)[0] + '.wav'
+                    opts = build_ydl_opts(browser)
+                    opts['outtmpl'] = os.path.join(output_dir, '%(title)s.%(ext)s')
                     
-                    if os.path.exists(wav_path):
-                        log_callback(f"[SUCCESS] Download & conversion complete: {os.path.basename(wav_path)}")
-                        progress_callback(1.0)
-                        completion_callback(wav_path, None)
-                    else:
-                        # Sometimes ydl prepends directory or changes format
-                        # Let's search for any .wav files created recently in output_dir
-                        log_callback("[WARNING] Checking alternative output locations...")
-                        name_no_ext = os.path.splitext(os.path.basename(raw_filename))[0]
-                        potential_wav = os.path.join(output_dir, f"{name_no_ext}.wav")
-                        if os.path.exists(potential_wav):
-                            log_callback(f"[SUCCESS] WAV file found: {os.path.basename(potential_wav)}")
-                            progress_callback(1.0)
-                            completion_callback(potential_wav, None)
-                        else:
-                            # Search in current directory too just in case
-                            local_wav = f"{name_no_ext}.wav"
-                            if os.path.exists(local_wav):
-                                # Move to output_dir
-                                final_dest = os.path.join(output_dir, local_wav)
-                                shutil.move(local_wav, final_dest)
-                                log_callback(f"[SUCCESS] WAV file moved to outputs: {os.path.basename(final_dest)}")
-                                progress_callback(1.0)
-                                completion_callback(final_dest, None)
+                    # Progress Hook for yt-dlp
+                    def ydl_hook(d):
+                        if d['status'] == 'downloading':
+                            total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+                            downloaded = d.get('downloaded_bytes', 0)
+                            if total > 0:
+                                pct = downloaded / total
+                                progress_callback(pct)
+                                speed = d.get('speed', 0)
+                                speed_str = f"{speed / 1024 / 1024:.2f} MB/s" if speed else "unknown"
+                                log_callback(f"[INFO] Downloading... {downloaded / 1024 / 1024:.1f}MB / {total / 1024 / 1024:.1f}MB ({speed_str})")
                             else:
-                                raise FileNotFoundError("Could not find the extracted WAV file.")
-                                
-            except Exception as e:
-                log_callback(f"[ERROR] Download failed: {str(e)}")
+                                log_callback(f"[INFO] Downloading... {downloaded / 1024 / 1024:.1f}MB (size unknown)")
+                        elif d['status'] == 'finished':
+                            log_callback("[INFO] Audio download finished. Converting to WAV...")
+                            progress_callback(0.95)
+                    
+                    opts['progress_hooks'] = [ydl_hook]
+                    
+                    with youtube_dl.YoutubeDL(opts) as ydl:
+                        info = ydl.extract_info(url, download=True)
+                        raw_filename = ydl.prepare_filename(info)
+                        
+                        # The downloader postprocessor changes extension to wav
+                        wav_path = os.path.splitext(raw_filename)[0] + '.wav'
+                        
+                        if os.path.exists(wav_path):
+                            log_callback(f"[SUCCESS] Download & conversion complete: {os.path.basename(wav_path)}")
+                            progress_callback(1.0)
+                            completion_callback(wav_path, None)
+                            success = True
+                            break
+                        else:
+                            log_callback("[WARNING] Checking alternative output locations...")
+                            name_no_ext = os.path.splitext(os.path.basename(raw_filename))[0]
+                            potential_wav = os.path.join(output_dir, f"{name_no_ext}.wav")
+                            if os.path.exists(potential_wav):
+                                log_callback(f"[SUCCESS] WAV file found: {os.path.basename(potential_wav)}")
+                                progress_callback(1.0)
+                                completion_callback(potential_wav, None)
+                                success = True
+                                break
+                            else:
+                                local_wav = f"{name_no_ext}.wav"
+                                if os.path.exists(local_wav):
+                                    final_dest = os.path.join(output_dir, local_wav)
+                                    shutil.move(local_wav, final_dest)
+                                    log_callback(f"[SUCCESS] WAV file moved to outputs: {os.path.basename(final_dest)}")
+                                    progress_callback(1.0)
+                                    completion_callback(final_dest, None)
+                                    success = True
+                                    break
+                                else:
+                                    raise FileNotFoundError("Could not find the extracted WAV file.")
+                except Exception as e:
+                    last_error = e
+                    log_callback(f"[WARNING] Attempt with {browser_label} failed: {str(e)}")
+            
+            if not success:
+                log_callback(f"[ERROR] All download attempts failed.")
                 progress_callback(0.0)
-                completion_callback(None, str(e))
+                completion_callback(None, str(last_error))
                 
         self.current_download_thread = threading.Thread(target=_download_task, daemon=True)
         self.current_download_thread.start()
