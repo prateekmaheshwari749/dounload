@@ -530,9 +530,9 @@ def get_next_hindi_filename(folder_path: str) -> str:
     import re
     if not os.path.exists(folder_path):
         os.makedirs(folder_path, exist_ok=True)
-        return "Hindi1.wav"
+        return "Hindi12.wav"
         
-    highest_num = 0
+    highest_num = 11
     pattern = re.compile(r"^Hindi(\d+)\.wav$", re.IGNORECASE)
     for filename in os.listdir(folder_path):
         match = pattern.match(filename)
